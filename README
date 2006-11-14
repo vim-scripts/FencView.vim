@@ -1,0 +1,75 @@
+This is a mirror of http://www.vim.org/scripts/script.php?script_id=1708
+
+Usage:                                                             
+              Commands:                                            
+               :FencAutoDetect                                     
+                   Auto detect the file encoding.                  
+                   Built-in detected encodings:                    
+                    Unicode:                                       
+                       UTF-8                                       
+                    Chinese Simplified:                            
+                       CP936 (GBK, EUC-CN)                         
+                    Chinese Traditional:                           
+                       CP950 (Big5)                                
+                       EUC-TW                                      
+                    Japanese:                                      
+                       CP932 (SJIS)                                
+                       EUC-JP                                      
+                    Korean:                                        
+                       CP949 (EUC-KR)                              
+               :FencView                                           
+                   Open the encoding list window,                  
+                   <up> and <down> to select an encoding,          
+                   enter to reload the file                        
+              Menu:                                                
+                Select a file encoding from the                    
+                Tools->Encoding menu just like what you do in      
+                firefox/IE.                                        
+              Options:                                             
+                Set these value in vimrc to config this            
+                plugin. Expmple:                                   
+                let g:fencview_autodetect = 1                      
+                                                                   
+                "$FENCVIEW_TELLENC"                                
+                  Now FencView allows the use of an external       
+                  program to determine the file encoding. It       
+                  may give you better performance, or better       
+                  accuracy, in some cases. Set the environment     
+                  variable FENCVIEW_TELLENC (or the vimrc          
+                  variable $FENCVIEW_TELLENC) to use this          
+                  feature. It is currently tested against          
+                  tellenc.                                         
+                  (default: 'tellenc')                             
+                  It means if tellenc is executable, it will       
+                  be used by default. If you still want to use     
+                  the detection mechanism of this script, set      
+                  the value to "fencview".                         
+                                                                   
+                "g:fencview_autodetect"                            
+                  Auto detect file encoding when you open a        
+                  file.                                            
+                  (default: 1)                                     
+                                                                   
+                "g:fencview_auto_patterns"                         
+                  Set this variable in your vimrc to decide        
+                  the pattern of file names to enable              
+                  autodetection.                                   
+                  (default: '*.txt,*.htm{l\=}')                    
+                                                                   
+                "g:fencview_checklines"                            
+                  It checks first and last several lines of        
+                  current file, so don't set the value too         
+                  large.                                           
+                  (default: 10)                                    
+                                                                   
+Tip:          1 "+iconv" feature is needed. If you are             
+                using Microsoft Windows, make sure you             
+                have iconv.dll in $PATH.                           
+                (http://mbbill.googlepages.com/iconv.dll)          
+                Use command ":echo has('iconv')" to check it.      
+              2 Make sure there is no modeline at the end of       
+                current file.                                      
+              3 set encoding to utf-8 for better performance.      
+              4 No effect to Vim encrypted files.                  
+                                                                   
+
