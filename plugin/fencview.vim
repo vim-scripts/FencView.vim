@@ -1,17 +1,18 @@
 "==================================================
-" File:         fenview.vim
+" File:         fencview.vim
 " Brief:        View a file in different encodings
 " Author:       Mingbai <mbbill AT gmail DOT com>
-" Last Change:  2006-11-15 23:58:25
-" Version:      0.1
+" Last Change:  2006-11-16 23:01:16
+" Version:      1.2
 "
 " Usage:
-"               :FenView
+"               :FencView
 "                   Open the encoding list window,
 "               <up> and <down> to select an encoding,
-"               enter to reload the file]
+"               enter to reload the file, or you can
+"               select a encoding from the menu.
 " Note:         Make sure there is no modeline at
-"               the end of your file]
+"               the end of your file.
 "
 "==================================================
 
@@ -86,7 +87,6 @@ function! ToggleFencView()
         echoerr "File is modified!"
         return
     endif
-    let s:MainWinBufName=bufname("%")
     let splitLocation="belowright "
     let splitMode="vertical "
     let splitSize=34
@@ -108,12 +108,16 @@ function! ToggleFencView()
     call append(0,s:FencUnicode)
     syn match Type "^.\{-}\s"
     syn match Comment "\s.*$"
-    let s=search(_tmpfenc)
-    if s!=0
-        let _line=getline(line("."))
-        let _fenc=substitute(_line,'\s.*$','',"g")
-        syn clear Search
-        exec "syn match Search \""._line."\""
+    if _tmpfenc!=""
+        let s=search(_tmpfenc)
+        if s!=0
+            let _line=getline(line("."))
+            let _fenc=substitute(_line,'\s.*$','',"g")
+            syn clear Search
+            exec "syn match Search \""._line."\""
+        endif
+    else
+        normal gg
     endif
     nnoremap <buffer> <CR> :call FencSelect()<CR>
     nnoremap <buffer> <2-leftmouse> :call FencSelect()<CR>
@@ -127,8 +131,8 @@ function! FencSelect()
     endif
     syn clear Search
     exec "syn match Search \""._line."\""
-    let MainWinNr=bufwinnr(s:MainWinBufName)
-    if MainWinNr==-1
+    let MainWinNr=winnr("#")
+    if MainWinNr==0
         echoerr "Main window not found!"
         return
     endif
@@ -153,26 +157,25 @@ function! FencCreateMenu()
         let fenname=fencla.'<tab>('.substitute(i,'^.\{-}\s\+','','g').')'
         let fenname=substitute(fenname,' ','\\ ','g')
         let fenname=substitute(fenname,'\.','_','g')
-        exec 'menu Tools.Encoding.8bit\ encodings.'.fenname.' :call FencMenuSel("'.fencla.'")<CR>'
+        exec 'menu &Tools.Encoding.8bit\ encodings.'.fenname.' :call FencMenuSel("'.fencla.'")<CR>'
     endfor
     for i in s:Fenc16bit
         let fencla=substitute(i,'\s.*$','','g')
         let fenname=fencla.'<tab>('.substitute(i,'^.\{-}\s\+','','g').')'
         let fenname=substitute(fenname,' ','\\ ','g')
         let fenname=substitute(fenname,'\.','_','g')
-        exec 'menu Tools.Encoding.16bit\ encodings.'.fenname.' :call FencMenuSel("'.fencla.'")<CR>'
+        exec 'menu &Tools.Encoding.16bit\ encodings.'.fenname.' :call FencMenuSel("'.fencla.'")<CR>'
     endfor
     for i in s:FencUnicode
         let fencla=substitute(i,'\s.*$','','g')
         let fenname=fencla.'<tab>('.substitute(i,'^.\{-}\s\+','','g').')'
         let fenname=substitute(fenname,' ','\\ ','g')
         let fenname=substitute(fenname,'\.','_','g')
-        exec 'menu Tools.Encoding.Unicode.'.fenname.' :call FencMenuSel("'.fencla.'")<CR>'
+        exec 'menu &Tools.Encoding.Unicode.'.fenname.' :call FencMenuSel("'.fencla.'")<CR>'
     endfor
-    menu Tools.Encoding.-sep-   :
-    menu Tools.Encoding.Toggle\ Encoding\ list :call ToggleFencView()<CR>
-    menu Tools.Encoding.-sep-   :
-    menu Tools.Encoding.Input\.\.\. :call FencMenuSel(inputdialog(g:FencCustom))<CR>
+    menu &Tools.Encoding.-sep-   :
+    menu &Tools.Encoding.Toggle\ Encoding\ list :call ToggleFencView()<CR>
+    menu &Tools.Encoding.Input\.\.\. :call FencMenuSel(inputdialog(g:FencCustom))<CR>
 endfunction
 
 function! FencMenuSel(fen_name)
