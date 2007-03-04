@@ -2,8 +2,10 @@
 " File:         fencview.vim
 " Brief:        View a file in different encodings
 " Author:       Mingbai <mbbill AT gmail DOT com>
-" Last Change:  2006-12-12 13:29:45
-" Version:      3.1
+" Last Change:  2007-03-04 22:52:05
+" Version:      3.2
+" Licence:      LGPL
+"
 "
 " Usage:
 "               Commands:
@@ -29,9 +31,9 @@
 "               Menu:
 "                 Select a file encoding from the
 "                 Tools->Encoding menu just like what you
-"                 did in firefox/IE.
+"                 do in firefox/IE.
 "               Tip:
-"                 Add the line below to your vimrc to let
+"                 Add the following line to your vimrc to let
 "                 it check the file encoding everytime you
 "                 open a file.
 "
@@ -39,11 +41,11 @@
 "                 
 "
 " Note:         - Make sure there is no modeline at
-"                 the end of your file.
+"                 the end of current file.
 "               - set encoding to utf-8 for better
 "                 performance.
 "               - It checks first and last 10 lines in
-"                 your file, so if the line is too long
+"                 current file, so if the line is too long
 "                 it will be a little slow.
 "               - In windows, you need iconv.dll
 "                 (http://mbbill.googlepages.com/iconv.dll)
@@ -54,6 +56,12 @@
 "               
 "
 "==================================================
+
+" if you don't want to enable syntax after detect file encoding,
+" set s:syn to 0.
+if !exists("g:_syn_")
+    let g:_syn_=1
+endif
 
 " variable definition{{{1
 let s:FencWinName="FencView_8795684"
@@ -491,7 +499,7 @@ function! s:ToggleFencView() "{{{1
     let _tmpfenc=&fenc
     let bmod=&modified
     if  bmod==1
-        echohl Error | echo "File is modified!"
+        echohl Error | echo "File is modified!" | echohl None
         return
     endif
     let splitLocation="belowright "
@@ -543,19 +551,19 @@ function! s:FencSelect() "{{{1
     exec "syn match Search \""._line."\""
     let MainWinNr=winnr("#")
     if MainWinNr==0
-        echohl Error | echo "Main window not found!"
+        echohl Error | echo "Main window not found!" | echohl None
         return
     endif
     exec MainWinNr." wincmd w"
     let _bmod=&modified
     if  _bmod==1
-        echohl Error | echo "File is modified!"
+        echohl Error | echo "File is modified!" | echohl None
         return
     endif
     exec "edit ++enc="._fenc
     let FencWinNr=bufwinnr(s:FencWinName)
     if FencWinNr==-1
-        echohl Error | echo "Encoding list window not found!"
+        echohl Error | echo "Encoding list window not found!" | echohl None
         return
     endif
     exec FencWinNr." wincmd w"
@@ -594,7 +602,7 @@ endfunction
 function! FencMenuSel(fen_name) "{{{1
     let _bmod=&modified
     if  _bmod==1
-        echohl Error | echo "File is modified!"
+        echohl Error | echo "File is modified!" | echohl None
         return
     endif
     if a:fen_name==''
@@ -924,6 +932,7 @@ function! s:FencHandleData() "{{{1
     if s:FencProbeBOM(fbody[0])==1
         return
     endif
+    "let fbody=getline(1,1110)
     let bodylen=len(fbody)
     let _firstline=fbody[0]
     if _firstline[:7]=="VimCrypt"
@@ -1041,13 +1050,13 @@ function! s:FencDetectFileEncoding() "{{{1
     endif
     let _bmod=&modified
     if  _bmod==1
-        echohl Error | echo "File is modified!"
+        echohl Error | echo "File is modified!" | echohl None
         return
     endif
     call s:FencInitVar()
     call s:FencHandleData()
     if s:FencRes=="VimCrypt"
-		echohl Error | echo "This is Vim encrypted file, descript it first!"
+		echohl Error | echo "This is Vim encrypted file, descript it first!" | echohl None
         return
     endif
     if s:FencRes!=''
@@ -1058,6 +1067,9 @@ function! s:FencDetectFileEncoding() "{{{1
             exec "set fencs=".tmp_fenc
         else
             exec "edit ++enc=".s:FencRes
+        endif
+        if g:_syn_==1
+            syntax on
         endif
         return
     else
@@ -1116,6 +1128,9 @@ function! s:FencDetectFileEncoding() "{{{1
     endif
     if s:FencRes!=''
         exec "edit ++enc=".s:FencRes
+    endif
+    if g:_syn_==1
+        syntax on
     endif
 endfunction
 
