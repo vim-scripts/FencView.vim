@@ -1,9 +1,10 @@
 "==================================================
 " File:         fencview.vim
 " Brief:        View a file in different encodings
-" Author:       Mingbai <mbbill AT gmail DOT com>
-" Last Change:  2007-03-04 22:52:05
-" Version:      3.2
+" Authors:      Ming Bai <mbbill AT gmail DOT com>,
+"               Wu Yongwei <wuyongwei AT gmail DOT com>
+" Last Change:  2007-04-24 10:04:02
+" Version:      4.0
 " Licence:      LGPL
 "
 "
@@ -11,19 +12,19 @@
 "               Commands:
 "                :FencAutoDetect
 "                    Auto detect the file encoding.
-"                    Supported encodings:
+"                    Built-in detected encodings:
 "                     Unicode:
-"                        utf-8
+"                        UTF-8
 "                     Chinese Simplified:
-"                        cp936(GBK,euc-cn,gb18030)
+"                        CP936 (GBK, EUC-CN)
 "                     Chinese Traditional:
-"                        cp950(big5)
-"                        euc-tw
+"                        CP950 (Big5)
+"                        EUC-TW
 "                     Japanese:
-"                        cp932(sjis)
-"                        euc-jp
+"                        CP932 (SJIS)
+"                        EUC-JP
 "                     Korean:
-"                        cp949(euc-kr)
+"                        CP949 (EUC-KR)
 "                :FencView
 "                    Open the encoding list window,
 "                    <up> and <down> to select an encoding,
@@ -38,7 +39,7 @@
 "                 open a file.
 "
 "                 autocmd BufReadPost * FencAutoDetect
-"                 
+"
 "
 " Note:         - Make sure there is no modeline at
 "                 the end of current file.
@@ -53,15 +54,10 @@
 "               - No effect to Vim encrypted files.
 "
 " Thanks:       jasonal
-"               
+"
 "
 "==================================================
 
-" if you don't want to enable syntax after detect file encoding,
-" set s:syn to 0.
-if !exists("g:_syn_")
-    let g:_syn_=1
-endif
 
 " variable definition{{{1
 let s:FencWinName="FencView_8795684"
@@ -94,12 +90,12 @@ let s:Fenc8bit=[
             \"cp1257    Baltic",
             \"cp1258    Vietnamese"]
 let s:Fenc16bit=[
-            \"cp936     simplified Chinese (Windows only)",
-            \"gb18030   simplified Chinese (Windows only)",
-            \"euc-cn    simplified Chinese (Unix only)",
-            \"cp950     traditional Chinese (on Unix alias for big5)",
-            \"big5      traditional Chinese (on Windows alias for cp950)",
-            \"euc-tw    traditional Chinese (Unix only)",
+            \"gb18030   Simplified Chinese",
+            \"cp936     Simplified Chinese (Windows only)",
+            \"euc-cn    Simplified Chinese (Unix only)",
+            \"cp950     Traditional Chinese (on Unix alias for big5)",
+            \"big5      Traditional Chinese (on Windows alias for cp950)",
+            \"euc-tw    Traditional Chinese (Unix only)",
             \"cp932     Japanese (Windows only)",
             \"euc-jp    Japanese (Unix only)",
             \"sjis      Japanese (Unix only)",
@@ -489,6 +485,175 @@ let s:cp949TopChars=[
 \0xc8.0xaf,0xc8.0xbd,0xc8.0xc4,0xc8.0xce,0xc8.0xf7,0xc8.0xf9]
 
 
+function! s:NormalizeEncodingName(enc) "{{{1
+    if a:enc=='gbk'
+        return 'cp936'
+    elseif has('win32') || has('win32unix') || has('win64')
+        if a:enc=='gb2312'
+            return 'cp936'
+        elseif a:enc=='big5'
+            return 'cp950'
+        endif
+    else " Unix
+        if a:enc=='gb2312'
+            return 'euc-cn'
+        endif
+    endif
+    return a:enc
+endfunction
+
+
+function! s:ConvertHtmlEncoding(enc) "{{{1
+    if a:enc=~?'^gb2312'
+        return 'cp936'          " GB2312 imprecisely means CP936 in HTML
+    elseif a:enc==? 'iso-8859-1'
+        return 'latin1'         " The canonical encoding name in Vim
+    elseif a:enc==? 'utf8'
+        return 'utf-8'          " Other encoding aliases should follow here
+    else
+        return s:NormalizeEncodingName(tolower(a:enc))
+    endif
+endfunction
+
+
+function! s:CheckModelineFileEncoding() "{{{1
+    if &modified && &fileencoding!=''
+        if s:disable_autodetection<2
+            let Syn=&syntax
+            exec 'edit! ++enc='.&fileencoding
+            if Syn!=''
+                let &syntax=Syn
+            endif
+        elseif exists('s:fencview_manual_enc')
+            let &fileencoding=s:fencview_manual_enc
+            set nomodified
+        endif
+    endif
+endfunction
+
+
+function! s:DetectHtmlEncoding() " {{{1
+    normal m`
+    normal gg
+    if search('\c<meta http-equiv=\("\?\)Content-Type\1 content="text/html; charset=[-A-Za-z0-9_]\+">')!=0
+        let reg_bak=@"
+        normal y$
+        let charset=matchstr(@", 'text/html; charset=\zs[-A-Za-z0-9_]\+')
+        let charset=s:ConvertHtmlEncoding(charset)
+        normal ``
+        let @"=reg_bak
+        if &fileencodings==''
+          let auto_encodings=','.&encoding.','
+        else
+          let auto_encodings=','.&fileencodings.','
+        endif
+        if charset!=?&fileencoding &&
+           \(auto_encodings=~','.&fileencoding.',' || &fileencoding=='')
+            try
+                let s:disable_autodetection=1
+                let Syn=&syntax
+                silent! exec 'edit ++enc='.charset
+                if Syn!=''
+                    let &syntax=Syn
+                endif
+            finally
+                let s:disable_autodetection=0
+            endtry
+        endif
+        return 1
+    else
+        return 0
+    endif
+endfunction
+
+
+function! s:EditManualEncoding(enc, ...) "{{{1
+    if a:0>1
+        echoerr 'Only one file name should be supplied'
+        return
+    endif
+    if a:0==1
+        let filename=' '.a:1
+    else
+        let filename=''
+    endif
+    try
+        let s:disable_autodetection=2
+        let s:fencview_manual_enc=a:enc
+        let Syn=&syntax
+        exec 'edit ++enc='.a:enc.filename
+        if Syn!=''
+            let &syntax=Syn
+        endif
+    finally
+        let s:disable_autodetection=0
+        unlet s:fencview_manual_enc
+    endtry
+endfunction
+
+
+function! s:EditAutoEncoding(...) "{{{1
+    if s:disable_autodetection || !has('iconv')
+        return
+    endif
+    if a:0>1
+        echoerr 'Only one file name should be supplied'
+        return
+    endif
+    if a:0==1
+        let filename=iconv(a:1, &encoding, g:legacy_encoding)
+        let filename_e=' '.a:1
+    else
+        let filename=iconv(expand('%:p'), &encoding, g:legacy_encoding)
+        let filename_e=''
+    endif
+    if a:0==1
+        try
+            let s:disable_autodetection=1
+            exec 'e'.filename_e
+        finally
+            let s:disable_autodetection=0
+        endtry
+    endif
+    if ','.g:fencview_html_filetypes.',' =~ ','.&filetype.','
+        if s:DetectHtmlEncoding()
+            return
+        endif
+    endif
+    if $FENCVIEW_TELLENC==''
+        call s:FencDetectFileEncoding()
+        return
+    endif
+    let result=system($FENCVIEW_TELLENC . ' "' . filename . '"')
+    let result=substitute(result, '\n$', '', '')
+    if v:shell_error!=0
+        echo iconv(result, g:legacy_encoding, &encoding)
+        return
+    endif
+    let result=s:NormalizeEncodingName(result)
+    if result!=&fileencoding
+        if result == 'binary'
+            echo 'Binary file'
+            sleep 1
+        elseif result == 'unknown'
+            echo 'Unknown encoding'
+            sleep 1
+        else
+            try
+                let s:disable_autodetection=1
+                let Syn=&syntax
+                exec 'edit ++enc='.result.filename_e
+                if Syn!=''
+                    let &syntax=Syn
+                endif
+            finally
+                let s:disable_autodetection=0
+            endtry
+        endif
+    endif
+endfunction
+
+
 function! s:ToggleFencView() "{{{1
     let FencWinNr=bufwinnr(s:FencWinName)
     if FencWinNr!=-1
@@ -560,7 +725,12 @@ function! s:FencSelect() "{{{1
         echohl Error | echo "File is modified!" | echohl None
         return
     endif
-    exec "edit ++enc="._fenc
+    try
+        let s:disable_autodetection=2
+        exec "edit ++enc="._fenc
+    finally
+        let s:disable_autodetection=0
+    endtry
     let FencWinNr=bufwinnr(s:FencWinName)
     if FencWinNr==-1
         echohl Error | echo "Encoding list window not found!" | echohl None
@@ -571,6 +741,7 @@ endfunction
 
 
 function! s:FencCreateMenu() "{{{1
+    au! FencView BufEnter
     for i in s:Fenc8bit
         let fencla=substitute(i,'\s.*$','','g')
         let fenname=fencla.'<tab>('.substitute(i,'^.\{-}\s\+','','g').')'
@@ -612,7 +783,13 @@ function! FencMenuSel(fen_name) "{{{1
     if bufname(winnr())==s:FencWinName
         return
     endif
-    exec "edit ++enc=".a:fen_name
+    try
+        let s:disable_autodetection=2
+        exec "edit ++enc=".a:fen_name
+    finally
+        let s:disable_autodetection=0
+    endtry
+
 endfunction
 
 
@@ -622,34 +799,34 @@ function! s:FencProgressBar(percentage, string, char, barlen) "{{{1
 "   a:string     -- leading description string (empty acceptable)
 "   a:char       -- character to use as bar (suggest "#", "|" or "*")
 "   a:barlen     -- bar length in columns, use 0 to use window width
-	if a:barlen == 0
-		let barlen=winwidth(0)-strlen(a:string)-1-2-3-2
-	else
-		let barlen=a:barlen
-	endif
-	let chrs=barlen*a:percentage/50
+    if a:barlen==0
+        let barlen=winwidth(0)-strlen(a:string)-1-2-3-2
+    else
+        let barlen=a:barlen
+    endif
+    let chrs=barlen*a:percentage/50
     let chrx=barlen-chrs
-	let bar=a:string."["
-	while chrs
-		let bar=bar.a:char
-		let chrs=chrs-1
-	endwhile
-	while chrx
-		let bar=bar." "
-		let chrx=chrx-1
-	endwhile
-	let bar=bar."] "
-	if a:percentage < 10
-		let bar=bar." "
-	endif
-	let bar=bar.a:percentage."%"
+    let bar=a:string."["
+    while chrs
+        let bar=bar.a:char
+        let chrs=chrs-1
+    endwhile
+    while chrx
+        let bar=bar." "
+        let chrx=chrx-1
+    endwhile
+    let bar=bar."] "
+    if a:percentage < 10
+        let bar=bar." "
+    endif
+    let bar=bar.a:percentage."%"
 
-	let cmdheight=&cmdheight
-	if cmdheight < 2
-	    let &cmdheight=2
-	endif
-	echo bar
-	let &cmdheight=cmdheight
+    let cmdheight=&cmdheight
+    if cmdheight < 2
+        let &cmdheight=2
+    endif
+    echo bar
+    let &cmdheight=cmdheight
 endfunction
 
 
@@ -854,12 +1031,12 @@ endfunction
 
 function! s:FencProbeUTF8(c) "{{{1
 "still not full support here
-"U-00000000 - U-0000007F:  0xxxxxxx  
+"U-00000000 - U-0000007F:  0xxxxxxx
 "U-00000080 - U-000007FF:  110xxxxx 10xxxxxx
-"U-00000800 - U-0000FFFF:  1110xxxx 10xxxxxx 10xxxxxx  
-"U-00010000 - U-001FFFFF:  11110xxx 10xxxxxx 10xxxxxx 10xxxxxx  
-"U-00200000 - U-03FFFFFF:  111110xx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx  
-"U-04000000 - U-7FFFFFFF:  1111110x 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx  
+"U-00000800 - U-0000FFFF:  1110xxxx 10xxxxxx 10xxxxxx
+"U-00010000 - U-001FFFFF:  11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+"U-00200000 - U-03FFFFFF:  111110xx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx
+"U-04000000 - U-7FFFFFFF:  1111110x 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx
     if s:UTF8_state=="start"
         if a:c<=0x7f "still start state
             return
@@ -962,7 +1139,7 @@ function! s:FencHandleData() "{{{1
             let ci=ci+1
         endwhile
     endfor
-endfunction 
+endfunction
 
 function! s:FencProbeBOM(Firstline) "{{{1
 " Vim can probe the file encoding by BOM correctly.
@@ -1056,20 +1233,26 @@ function! s:FencDetectFileEncoding() "{{{1
     call s:FencInitVar()
     call s:FencHandleData()
     if s:FencRes=="VimCrypt"
-		echohl Error | echo "This is Vim encrypted file, descript it first!" | echohl None
+        echohl Error | echo "This is Vim encrypted file, decrypt it first!" | echohl None
         return
     endif
+    let Syn=&syntax
     if s:FencRes!=''
         if s:FencRes=="BOM"
             let tmp_fenc=&fencs
-            set fencs=ucs-bom,utf-8,utf-16,ucs-2,ucs-4,latin1
+            set fencs=ucs-bom,utf-8,utf-16,latin1
             exec "e"
             exec "set fencs=".tmp_fenc
         else
-            exec "edit ++enc=".s:FencRes
+            try
+                let s:disable_autodetection=2
+                exec "edit ++enc=".s:FencRes
+            finally
+                let s:disable_autodetection=0
+            endtry
         endif
-        if g:_syn_==1
-            syntax on
+        if Syn!=''
+            let &syntax=Syn
         endif
         return
     else
@@ -1127,15 +1310,57 @@ function! s:FencDetectFileEncoding() "{{{1
         endif
     endif
     if s:FencRes!=''
-        exec "edit ++enc=".s:FencRes
+        try
+            let s:disable_autodetection=2
+            exec "edit ++enc=".s:FencRes
+        finally
+            let s:disable_autodetection=0
+        endtry
     endif
-    if g:_syn_==1
-        syntax on
+    if Syn!=''
+        let &syntax=Syn
     endif
 endfunction
 
-call    s:FencCreateMenu()
-command!    -nargs=0 FencView       call s:ToggleFencView()
-command!    -nargs=0 FencAutoDetect call s:FencDetectFileEncoding()
 
-" vim: set ft=vim ff=unix fdm=marker :
+" initialization{{{1
+if !exists('g:fencview_auto_patterns')
+    let g:fencview_auto_patterns='*.txt,*.htm{l\=}'
+endif
+if !exists('g:fencview_html_filetypes')
+    let g:fencview_html_filetypes='html'
+endif
+
+if !exists('g:legacy_encoding')
+    if &encoding!~?'^utf' && &encoding!~?'^ucs'
+        let g:legacy_encoding=&encoding
+    elseif &fileencodings=~?'^ucs-bom,utf-8,[^,]\+'
+        let g:legacy_encoding=matchstr(&fileencodings, '^ucs-bom,utf-8,\zs[^,]\+')
+    endif
+    if !exists('g:legacy_encoding') || g:legacy_encoding=='default'
+        let g:legacy_encoding=''
+    endif
+endif
+
+let s:disable_autodetection=0
+
+augroup FencView
+    au!
+augroup END
+
+if has('gui_running')
+    augroup FencView
+        au BufEnter *               call s:FencCreateMenu()
+    augroup END
+endif
+
+command! -nargs=0                FencView       call s:ToggleFencView()
+command! -nargs=* -complete=file FencAutoDetect call
+                               \ s:EditAutoEncoding(<f-args>)
+command! -nargs=+ -complete=file FencManualEncoding call
+                               \ s:EditManualEncoding(<f-args>)
+
+exec 'au BufRead ' . g:fencview_auto_patterns .
+      \' call s:EditAutoEncoding()'
+
+" vim: set et ff=unix fdm=marker sts=4 sw=4:
