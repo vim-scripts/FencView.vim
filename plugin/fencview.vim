@@ -3,8 +3,8 @@
 " Brief:        View a file in different encodings
 " Authors:      Ming Bai <mbbill AT gmail DOT com>,
 "               Wu Yongwei <wuyongwei AT gmail DOT com>
-" Last Change:  2007-04-24 10:04:02
-" Version:      4.0
+" Last Change:  2007-05-22 16:36:41
+" Version:      4.1
 " Licence:      LGPL
 "
 "
@@ -31,35 +31,84 @@
 "                    enter to reload the file
 "               Menu:
 "                 Select a file encoding from the
-"                 Tools->Encoding menu just like what you
-"                 do in firefox/IE.
-"               Tip:
-"                 Add the following line to your vimrc to let
-"                 it check the file encoding everytime you
-"                 open a file.
+"                 Tools->Encoding menu just like what you do in
+"                 firefox/IE.
+"               Options:
+"                 Set these value in vimrc to config this
+"                 plugin. Expmple:
+"                 let g:fencview_autodetect = 1
 "
-"                 autocmd BufReadPost * FencAutoDetect
+"                 "$FENCVIEW_TELLENC"
+"                   Now FencView allows the use of an external
+"                   program to determine the file encoding. It
+"                   may give you better performance, or better
+"                   accuracy, in some cases. Set the environment
+"                   variable FENCVIEW_TELLENC (or the vimrc
+"                   variable $FENCVIEW_TELLENC) to use this
+"                   feature. It is currently tested against
+"                   tellenc.
+"                   (default: 'tellenc')
+"                   It means if tellenc is executable, it will
+"                   be used by default. If you still want to use
+"                   the detection mechanism of this script, set
+"                   the value to "fencview".
 "
+"                 "g:fencview_autodetect"
+"                   Auto detect file encoding when you open a
+"                   file.
+"                   (default: 1)
 "
-" Note:         - Make sure there is no modeline at
-"                 the end of current file.
-"               - set encoding to utf-8 for better
-"                 performance.
-"               - It checks first and last 10 lines in
-"                 current file, so if the line is too long
-"                 it will be a little slow.
-"               - In windows, you need iconv.dll
+"                 "g:fencview_auto_patterns"
+"                   Set this variable in your vimrc to decide
+"                   the pattern of file names to enable
+"                   autodetection.
+"                   (default: '*.txt,*.htm{l\=}')
+"
+"                 "g:fencview_checklines"
+"                   It checks first and last several lines of
+"                   current file, so don't set the value too
+"                   large.
+"                   (default: 10)
+"
+" Tip:          1 "+iconv" feature is needed. If you are
+"                 using Microsoft Windows, make sure you
+"                 have iconv.dll in $PATH.
 "                 (http://mbbill.googlepages.com/iconv.dll)
-"                 in the $PATH .
-"               - No effect to Vim encrypted files.
+"                 Use command ":echo has('iconv')" to check it.
+"               2 Make sure there is no modeline at the end of
+"                 current file.
+"               3 set encoding to utf-8 for better performance.
+"               4 No effect to Vim encrypted files.
+"
+"
 "
 " Thanks:       jasonal
 "
 "
 "==================================================
-
+" Vim version 7.x is needed. Thanks to Ingo Karkat
+if v:version < 700
+     finish
+endif
 
 " variable definition{{{1
+if !exists('g:fencview_autodetect')
+    let g:fencview_autodetect = 1
+endif
+if !exists('g:fencview_auto_patterns')
+    let g:fencview_auto_patterns='*.txt,*.htm{l\=}'
+endif
+if !exists('g:fencview_checklines')
+    let g:fencview_checklines = 10
+endif
+if !exists('g:fencview_html_filetypes')
+    let g:fencview_html_filetypes='html'
+endif
+if $FENCVIEW_TELLENC == ''
+    let $FENCVIEW_TELLENC ='tellenc'
+endif
+
+
 let s:FencWinName="FencView_8795684"
 let s:Fenc8bit=[
             \"latin1    8-bit.characters (ISO 8859-1)",
@@ -593,7 +642,18 @@ endfunction
 
 
 function! s:EditAutoEncoding(...) "{{{1
-    if s:disable_autodetection || !has('iconv')
+    if s:disable_autodetection
+        return
+    endif
+    if bufname(winnr())==s:FencWinName
+        return
+    endif
+    if  &modified
+        echoerr "File is modified!"
+        return
+    endif
+    if !has('iconv')
+        echoerr "\"+iconv\" feature not found, see NOTE #1 in fencview.vim"
         return
     endif
     if a:0>1
@@ -620,7 +680,7 @@ function! s:EditAutoEncoding(...) "{{{1
             return
         endif
     endif
-    if $FENCVIEW_TELLENC==''
+    if ($FENCVIEW_TELLENC == "fencview") || !executable($FENCVIEW_TELLENC)
         call s:FencDetectFileEncoding()
         return
     endif
@@ -631,7 +691,7 @@ function! s:EditAutoEncoding(...) "{{{1
         return
     endif
     let result=s:NormalizeEncodingName(result)
-    if result!=&fileencoding
+    if result!=&fileencoding && !(result=='ascii' && &fileencoding=='utf-8')
         if result == 'binary'
             echo 'Binary file'
             sleep 1
@@ -662,9 +722,8 @@ function! s:ToggleFencView() "{{{1
         return
     endif
     let _tmpfenc=&fenc
-    let bmod=&modified
-    if  bmod==1
-        echohl Error | echo "File is modified!" | echohl None
+    if  &modified
+        echoerr "File is modified!"
         return
     endif
     let splitLocation="belowright "
@@ -716,13 +775,12 @@ function! s:FencSelect() "{{{1
     exec "syn match Search \""._line."\""
     let MainWinNr=winnr("#")
     if MainWinNr==0
-        echohl Error | echo "Main window not found!" | echohl None
+        echoerr "Main window not found!"
         return
     endif
     exec MainWinNr." wincmd w"
-    let _bmod=&modified
-    if  _bmod==1
-        echohl Error | echo "File is modified!" | echohl None
+    if  &modified
+        echoerr "File is modified!"
         return
     endif
     try
@@ -733,7 +791,7 @@ function! s:FencSelect() "{{{1
     endtry
     let FencWinNr=bufwinnr(s:FencWinName)
     if FencWinNr==-1
-        echohl Error | echo "Encoding list window not found!" | echohl None
+        echoerr "Encoding list window not found!"
         return
     endif
     exec FencWinNr." wincmd w"
@@ -771,9 +829,8 @@ endfunction
 
 
 function! FencMenuSel(fen_name) "{{{1
-    let _bmod=&modified
-    if  _bmod==1
-        echohl Error | echo "File is modified!" | echohl None
+    if  &modified
+        echoerr "File is modified!"
         return
     endif
     if a:fen_name==''
@@ -819,7 +876,7 @@ function! s:FencProgressBar(percentage, string, char, barlen) "{{{1
     if a:percentage < 10
         let bar=bar." "
     endif
-    let bar=bar.a:percentage."%"
+    let bar=bar.a:percentage."%"." (ctrl+c to stop)"
 
     let cmdheight=&cmdheight
     if cmdheight < 2
@@ -1099,11 +1156,11 @@ function! s:FencHandleData() "{{{1
     if A_fbody==[]
         return
     endif
-    "check first 10 lines and last 10 lines
-    if len(A_fbody)<20
+    "check first and last several lines
+    if len(A_fbody)<(g:fencview_checklines*2)
         let fbody=A_fbody
     else
-        let fbody=A_fbody[:9]+A_fbody[-10:]
+        let fbody=A_fbody[:(g:fencview_checklines-1)]+A_fbody[(0-g:fencview_checklines):]
     endif
     " check BOM
     if s:FencProbeBOM(fbody[0])==1
@@ -1225,15 +1282,14 @@ function! s:FencDetectFileEncoding() "{{{1
     if bufname(winnr())==s:FencWinName
         return
     endif
-    let _bmod=&modified
-    if  _bmod==1
-        echohl Error | echo "File is modified!" | echohl None
+    if  &modified
+        echoerr "File is modified!"
         return
     endif
     call s:FencInitVar()
     call s:FencHandleData()
     if s:FencRes=="VimCrypt"
-        echohl Error | echo "This is Vim encrypted file, decrypt it first!" | echohl None
+        echoerr "This is Vim encrypted file, decrypt it first!"
         return
     endif
     let Syn=&syntax
@@ -1324,13 +1380,6 @@ endfunction
 
 
 " initialization{{{1
-if !exists('g:fencview_auto_patterns')
-    let g:fencview_auto_patterns='*.txt,*.htm{l\=}'
-endif
-if !exists('g:fencview_html_filetypes')
-    let g:fencview_html_filetypes='html'
-endif
-
 if !exists('g:legacy_encoding')
     if &encoding!~?'^utf' && &encoding!~?'^ucs'
         let g:legacy_encoding=&encoding
@@ -1360,7 +1409,11 @@ command! -nargs=* -complete=file FencAutoDetect call
 command! -nargs=+ -complete=file FencManualEncoding call
                                \ s:EditManualEncoding(<f-args>)
 
-exec 'au BufRead ' . g:fencview_auto_patterns .
-      \' call s:EditAutoEncoding()'
+if g:fencview_autodetect == 1
+    exec 'au BufRead ' . g:fencview_auto_patterns .
+                \' call s:EditAutoEncoding()'
+    exec 'au BufWinEnter ' . g:fencview_auto_patterns .
+                \' call s:CheckModelineFileEncoding()'
+endif
 
-" vim: set et ff=unix fdm=marker sts=4 sw=4:
+" vim: set et ff=unix fdm=marker sts=4 sw=4 tw=64:
