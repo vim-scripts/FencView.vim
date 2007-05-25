@@ -3,8 +3,8 @@
 " Brief:        View a file in different encodings
 " Authors:      Ming Bai <mbbill AT gmail DOT com>,
 "               Wu Yongwei <wuyongwei AT gmail DOT com>
-" Last Change:  2007-05-22 16:36:41
-" Version:      4.1
+" Last Change:  2007-05-25 16:11:00
+" Version:      4.2
 " Licence:      LGPL
 "
 "
@@ -618,7 +618,7 @@ endfunction
 
 function! s:EditManualEncoding(enc, ...) "{{{1
     if a:0>1
-        echoerr 'Only one file name should be supplied'
+        echohl Error | echomsg 'Only one file name should be supplied' | echohl None
         return
     endif
     if a:0==1
@@ -649,15 +649,15 @@ function! s:EditAutoEncoding(...) "{{{1
         return
     endif
     if  &modified
-        echoerr "File is modified!"
+        echohl Error | echomsg "File is modified!" | echohl None
         return
     endif
     if !has('iconv')
-        echoerr "\"+iconv\" feature not found, see NOTE #1 in fencview.vim"
+        echohl Error | echomsg "\"+iconv\" feature not found, see NOTE #1 in fencview.vim" | echohl None
         return
     endif
     if a:0>1
-        echoerr 'Only one file name should be supplied'
+        echohl Error | echomsg 'Only one file name should be supplied' | echohl None
         return
     endif
     if a:0==1
@@ -687,16 +687,16 @@ function! s:EditAutoEncoding(...) "{{{1
     let result=system($FENCVIEW_TELLENC . ' "' . filename . '"')
     let result=substitute(result, '\n$', '', '')
     if v:shell_error!=0
-        echo iconv(result, g:legacy_encoding, &encoding)
+        echohl Error|echomsg iconv(result, g:legacy_encoding, &encoding)|echohl None
         return
     endif
     let result=s:NormalizeEncodingName(result)
     if result!=&fileencoding && !(result=='ascii' && &fileencoding=='utf-8')
         if result == 'binary'
-            echo 'Binary file'
+            echomsg 'Binary file'
             sleep 1
         elseif result == 'unknown'
-            echo 'Unknown encoding'
+            echomsg 'Unknown encoding'
             sleep 1
         else
             try
@@ -723,7 +723,7 @@ function! s:ToggleFencView() "{{{1
     endif
     let _tmpfenc=&fenc
     if  &modified
-        echoerr "File is modified!"
+        echohl Error | echomsg "File is modified!" | echohl None
         return
     endif
     let splitLocation="belowright "
@@ -775,12 +775,12 @@ function! s:FencSelect() "{{{1
     exec "syn match Search \""._line."\""
     let MainWinNr=winnr("#")
     if MainWinNr==0
-        echoerr "Main window not found!"
+        echohl Error | echomsg "Main window not found!" | echohl None
         return
     endif
     exec MainWinNr." wincmd w"
     if  &modified
-        echoerr "File is modified!"
+        echohl Error | echomsg "File is modified!" | echohl None
         return
     endif
     try
@@ -791,7 +791,7 @@ function! s:FencSelect() "{{{1
     endtry
     let FencWinNr=bufwinnr(s:FencWinName)
     if FencWinNr==-1
-        echoerr "Encoding list window not found!"
+        echohl Error | echomsg "Encoding list window not found!" | echohl None
         return
     endif
     exec FencWinNr." wincmd w"
@@ -805,32 +805,32 @@ function! s:FencCreateMenu() "{{{1
         let fenname=fencla.'<tab>('.substitute(i,'^.\{-}\s\+','','g').')'
         let fenname=substitute(fenname,' ','\\ ','g')
         let fenname=substitute(fenname,'\.','_','g')
-        exec 'menu &Tools.Encoding.8bit\ encodings.'.fenname.' :call FencMenuSel("'.fencla.'")<CR>'
+        exec 'menu &Tools.Encodin&g.&8bit\ encodings.'.fenname.' :call FencMenuSel("'.fencla.'")<CR>'
     endfor
     for i in s:Fenc16bit
         let fencla=substitute(i,'\s.*$','','g')
         let fenname=fencla.'<tab>('.substitute(i,'^.\{-}\s\+','','g').')'
         let fenname=substitute(fenname,' ','\\ ','g')
         let fenname=substitute(fenname,'\.','_','g')
-        exec 'menu &Tools.Encoding.16bit\ encodings.'.fenname.' :call FencMenuSel("'.fencla.'")<CR>'
+        exec 'menu &Tools.Encodin&g.&16bit\ encodings.'.fenname.' :call FencMenuSel("'.fencla.'")<CR>'
     endfor
     for i in s:FencUnicode
         let fencla=substitute(i,'\s.*$','','g')
         let fenname=fencla.'<tab>('.substitute(i,'^.\{-}\s\+','','g').')'
         let fenname=substitute(fenname,' ','\\ ','g')
         let fenname=substitute(fenname,'\.','_','g')
-        exec 'menu &Tools.Encoding.Unicode.'.fenname.' :call FencMenuSel("'.fencla.'")<CR>'
+        exec 'menu &Tools.Encodin&g.&Unicode.'.fenname.' :call FencMenuSel("'.fencla.'")<CR>'
     endfor
-    menu &Tools.Encoding.-sep-                  :
-    menu &Tools.Encoding.Auto\ Detect           :FencAutoDetect<CR>
-    menu &Tools.Encoding.Toggle\ Encoding\ list :FencView<CR>
-    menu &Tools.Encoding.Input\.\.\.            :call FencMenuSel(inputdialog(g:FencCustom))<CR>
+    menu &Tools.Encodin&g.-sep-                  :
+    menu &Tools.Encodin&g.&Auto\ Detect           :FencAutoDetect<CR>
+    menu &Tools.Encodin&g.&Toggle\ Encoding\ list :FencView<CR>
+    menu &Tools.Encodin&g.&Input\.\.\.            :call FencMenuSel(inputdialog(g:FencCustom))<CR>
 endfunction
 
 
 function! FencMenuSel(fen_name) "{{{1
     if  &modified
-        echoerr "File is modified!"
+        echohl Error | echomsg "File is modified!" | echohl None
         return
     endif
     if a:fen_name==''
@@ -1283,13 +1283,13 @@ function! s:FencDetectFileEncoding() "{{{1
         return
     endif
     if  &modified
-        echoerr "File is modified!"
+        echohl Error | echomsg "File is modified!" | echohl None
         return
     endif
     call s:FencInitVar()
     call s:FencHandleData()
     if s:FencRes=="VimCrypt"
-        echoerr "This is Vim encrypted file, decrypt it first!"
+        echohl Error | echomsg "This is Vim encrypted file, decrypt it first!" | echohl None
         return
     endif
     let Syn=&syntax
