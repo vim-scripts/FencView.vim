@@ -3,8 +3,7 @@
 " Brief:        View a file in different encodings
 " Authors:      Ming Bai <mbbill AT gmail DOT com>,
 "               Wu Yongwei <wuyongwei AT gmail DOT com>
-" Last Change:  2012-02-04 19:18:37
-" Version:      4.8
+" Version:      4.9
 " Licence:      LGPL
 "
 "
@@ -56,7 +55,7 @@
 "                 "g:fencview_autodetect"
 "                   Auto detect file encoding when you open a
 "                   file.
-"                   (default: 1)
+"                   (default: 0)
 "
 "                 "g:fencview_auto_patterns"
 "                   Set this variable in your vimrc to decide
@@ -103,9 +102,19 @@ fun! s:escape(name)
   return "'" . a:name . "'"
 endfun
 
+fun! s:convert(name)
+  " Patch 7.4.122 converts the file name encoding automatically
+  if has('win32') &&
+        \(v:version < 704 || (v:version == 704 && !has('patch122')))
+    return iconv(a:name, &encoding, g:legacy_encoding)
+  else
+    return a:name
+  endif
+endfun
+
 " variable definition{{{1
 if !exists('g:fencview_autodetect')
-    let g:fencview_autodetect = 1
+    let g:fencview_autodetect = 0
 endif
 if !exists('g:fencview_auto_patterns')
     let g:fencview_auto_patterns='*.txt,*.htm{l\=}'
@@ -674,10 +683,10 @@ function! s:EditAutoEncoding(...) "{{{1
         return
     endif
     if a:0==1
-        let filename=iconv(a:1, &encoding, g:legacy_encoding)
+        let filename=s:convert(a:1)
         let filename_e=' '.a:1
     else
-        let filename=iconv(expand('%:p'), &encoding, g:legacy_encoding)
+        let filename=s:convert(expand('%:p'))
         let filename_e=''
     endif
     if a:0==1
@@ -706,7 +715,14 @@ function! s:EditAutoEncoding(...) "{{{1
             endif
             let $VIM_SYSTEM_HIDECONSOLE=1
         endif
+        if exists('+shellslash')
+            let shellslash_save = &shellslash
+            set noshellslash
+        endif
         let result=system($FENCVIEW_TELLENC . ' ' . s:escape(filename))
+        if exists('+shellslash')
+            let &shellslash = shellslash_save
+        endif
     finally
         if has('gui_running')
             let $VIM_SYSTEM_HIDECONSOLE=vim_system_hideconsole_bak
@@ -867,13 +883,7 @@ function! FencMenuSel(fen_name) "{{{1
     if bufname(winnr())==s:FencWinName
         return
     endif
-    try
-        let s:disable_autodetection=2
-        exec "edit ++enc=".a:fen_name
-    finally
-        let s:disable_autodetection=0
-    endtry
-
+    call s:EditManualEncoding(a:fen_name)
 endfunction
 
 
@@ -1116,6 +1126,9 @@ function! s:FencHandleData() "{{{1
         return
     endif
     for line in fbody
+        if len(line) > 500 "the line is too long.
+            let line = line[:500]
+        endif
         let lnr+=1
         call s:FencProgressBar(100*lnr/bodylen,' Processing... ',)
         let ci=0
@@ -1343,6 +1356,8 @@ if g:fencview_autodetect
                 \' call s:EditAutoEncoding()'
     exec 'au BufWinEnter ' . g:fencview_auto_patterns .
                 \' call s:CheckModelineFileEncoding()'
+    exec 'au BufUnload ' . g:fencview_auto_patterns .
+                \' unlet! b:fencview_modeline_checked'
 endif
 
 " Restore cpoptions
